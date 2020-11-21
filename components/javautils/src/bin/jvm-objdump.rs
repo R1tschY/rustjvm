@@ -2,6 +2,7 @@ use std::fs::File;
 
 use clap::{App, Arg};
 
+use classfile::descriptor::parse_field_descriptor;
 use classfile::parse_class_file;
 
 fn main() {
@@ -54,24 +55,25 @@ fn main() {
 
     for interface in class_file.interfaces() {
         println!(
-            "INTERFACE: {:?} ({:?})",
+            "INTERFACE: {:?} -> {:?}",
             interface,
-            constant_pool.get(*interface).unwrap()
+            constant_pool.resolve_utf8(*interface).unwrap()
         );
     }
 
     for field in class_file.fields() {
         println!("FIELD:",);
         println!(
-            "  NAME: {:?} ({:?})",
+            "  NAME: {:?} -> {:?}",
             field.name_index,
-            constant_pool.get(field.name_index).unwrap()
+            constant_pool.resolve_utf8(field.name_index).unwrap()
         );
         println!("  FLAGS: {:?}", field.access_flags);
         println!(
-            "  DESCRIPTOR: {:?} ({:?})",
+            "  DESCRIPTOR: {:?} -> {:?}",
             field.descriptor_index,
-            constant_pool.get(field.descriptor_index).unwrap()
+            parse_field_descriptor(constant_pool.resolve_utf8(field.descriptor_index).unwrap())
+                .unwrap()
         );
         println!("  ATTRIBUTES:");
         for attribute in &field.attributes {

@@ -8,6 +8,7 @@ use std::convert::TryInto;
 use std::io;
 use std::io::Read;
 
+pub mod descriptor;
 pub mod error;
 pub mod model;
 
