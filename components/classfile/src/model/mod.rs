@@ -7,11 +7,12 @@ pub struct ClassFile {
     pub(crate) magic: u32,
     pub(crate) minor_version: u16,
     pub(crate) major_version: u16,
-    pub(crate) constants: Vec<Constant>,
+    pub(crate) constants: ConstantPool,
     pub(crate) access_flags: AccessFlags,
     pub(crate) this_class: ConstantIndex,
     pub(crate) super_class: ConstantIndex,
     pub(crate) interfaces: Vec<ConstantIndex>,
+    pub(crate) fields: Vec<Field>,
 }
 
 impl ClassFile {
@@ -31,7 +32,7 @@ impl ClassFile {
         self.access_flags.clone()
     }
 
-    pub fn constants(&self) -> &[Constant] {
+    pub fn constant_pool(&self) -> &ConstantPool {
         &self.constants
     }
 
@@ -47,13 +48,44 @@ impl ClassFile {
         &self.interfaces
     }
 
-    //
+    pub fn fields(&self) -> &[Field] {
+        &self.fields
+    }
+}
 
-    pub fn resolve_constant(&self, index: ConstantIndex) -> Option<&Constant> {
+pub struct ConstantPool(Vec<Constant>);
+
+impl ConstantPool {
+    pub fn new(constant_pool: Vec<Constant>) -> Self {
+        Self(constant_pool)
+    }
+
+    pub fn all(&self) -> Vec<(ConstantIndex, &Constant)> {
+        self.0
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.is_valid())
+            .map(|(i, constant)| (ConstantIndex(i as u16), constant))
+            .collect()
+    }
+
+    pub fn get(&self, index: ConstantIndex) -> Option<&Constant> {
         if index.0 == 0 {
             None
         } else {
-            self.constants.get((index.0 - 1) as usize)
+            // TODO: check for invalid constant
+            self.0.get((index.0 - 1) as usize)
+        }
+    }
+
+    pub fn resolve_utf8(&self, index: ConstantIndex) -> JvmParseResult<&str> {
+        match self.get(index) {
+            Some(Constant::Utf8(utf8)) => Ok(utf8),
+            Some(_) => Err(JvmParseError::WrongConstantType(
+                index,
+                "expected Utf8".into(),
+            )),
+            None => Err(JvmParseError::MissingConstant(index)),
         }
     }
 }
@@ -113,7 +145,7 @@ impl fmt::Debug for ConstantIndex {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Constant {
     Class {
         name_index: ConstantIndex,
@@ -130,28 +162,16 @@ pub enum Constant {
         class_index: ConstantIndex,
         name_and_type_index: ConstantIndex,
     },
-    String {
-        string_index: ConstantIndex,
-    },
-    Integer {
-        value: u32,
-    },
-    Float {
-        value: f32,
-    },
-    Long {
-        value: u64,
-    },
-    Double {
-        value: f64,
-    },
+    String(ConstantIndex),
+    Integer(i32),
+    Float(f32),
+    Long(i64),
+    Double(f64),
     NameAndType {
         name_index: ConstantIndex,
         descriptor_index: ConstantIndex,
     },
-    Utf8 {
-        value: String,
-    },
+    Utf8(String),
     MethodHandle {
         reference_kind: ReferenceKind,
         reference_index: ConstantIndex,
@@ -166,7 +186,13 @@ pub enum Constant {
     InvalidConstant,
 }
 
-#[derive(Debug)]
+impl Constant {
+    pub fn is_valid(&self) -> bool {
+        *self != Constant::InvalidConstant
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ReferenceKind {
     GetField = 1,
     GetStatic = 2,
@@ -201,4 +227,16 @@ impl TryFrom<u8> for ReferenceKind {
             }
         })
     }
+}
+
+pub struct Field {
+    pub access_flags: AccessFlags,
+    pub name_index: ConstantIndex,
+    pub descriptor_index: ConstantIndex,
+    pub attributes: Vec<Attribute>,
+}
+
+#[derive(Debug)]
+pub enum Attribute {
+    UnknownAttribute { name: ConstantIndex, value: Vec<u8> },
 }

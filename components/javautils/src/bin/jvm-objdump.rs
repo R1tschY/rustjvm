@@ -2,7 +2,6 @@ use std::fs::File;
 
 use clap::{App, Arg};
 
-use classfile::model::ConstantIndex;
 use classfile::parse_class_file;
 
 fn main() {
@@ -37,30 +36,46 @@ fn main() {
     println!("FLAGS: {:?}", class_file.access_flags());
 
     println!("CONSTANTS:");
-    for (i, constant) in class_file.constants().iter().enumerate() {
-        println!("  {:?} => {:?}", ConstantIndex(i as u16 + 1), constant);
+    let constant_pool = class_file.constant_pool();
+    for (i, constant) in constant_pool.all() {
+        println!("  {:?} => {:?}", i, constant);
     }
 
     println!(
         "THIS CLASS: {:?} ({:?})",
         class_file.this_class(),
-        class_file
-            .resolve_constant(class_file.this_class())
-            .unwrap()
+        constant_pool.get(class_file.this_class()).unwrap()
     );
     println!(
         "SUPER CLASS: {:?} ({:?})",
         class_file.super_class(),
-        class_file
-            .resolve_constant(class_file.super_class())
-            .unwrap()
+        constant_pool.get(class_file.super_class()).unwrap()
     );
 
     for interface in class_file.interfaces() {
         println!(
             "INTERFACE: {:?} ({:?})",
             interface,
-            class_file.resolve_constant(*interface).unwrap()
+            constant_pool.get(*interface).unwrap()
         );
+    }
+
+    for field in class_file.fields() {
+        println!("FIELD:",);
+        println!(
+            "  NAME: {:?} ({:?})",
+            field.name_index,
+            constant_pool.get(field.name_index).unwrap()
+        );
+        println!("  FLAGS: {:?}", field.access_flags);
+        println!(
+            "  DESCRIPTOR: {:?} ({:?})",
+            field.descriptor_index,
+            constant_pool.get(field.descriptor_index).unwrap()
+        );
+        println!("  ATTRIBUTES:");
+        for attribute in &field.attributes {
+            println!("    {:?}", attribute);
+        }
     }
 }

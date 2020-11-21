@@ -1,3 +1,4 @@
+use crate::model::{Attribute, ConstantPool, Field};
 use bitflags::bitflags;
 use byteorder::{BigEndian, ReadBytesExt};
 use cesu8::from_java_cesu8;
@@ -57,7 +58,7 @@ pub fn parse_class_file<T: Read>(mut reader: T) -> JvmParseResult<ClassFile> {
         )));
     }
 
-    let constants = parse_constants(&mut reader)?;
+    let constants = ConstantPool::new(parse_constants(&mut reader)?);
 
     let access_flags = AccessFlags::from_bits_truncate(reader.read_u16::<BigEndian>()?);
 
@@ -69,6 +70,11 @@ pub fn parse_class_file<T: Read>(mut reader: T) -> JvmParseResult<ClassFile> {
         .map(|_| reader.read_u16::<BigEndian>().map(|c| ConstantIndex(c)))
         .collect::<io::Result<Vec<ConstantIndex>>>()?;
 
+    let fields_count = reader.read_u16::<BigEndian>()? as usize;
+    let fields = (0..fields_count)
+        .map(|_| parse_field(&mut reader, &constants))
+        .collect::<JvmParseResult<Vec<Field>>>()?;
+
     Ok(ClassFile {
         magic,
         minor_version,
@@ -78,6 +84,7 @@ pub fn parse_class_file<T: Read>(mut reader: T) -> JvmParseResult<ClassFile> {
         this_class,
         super_class,
         interfaces,
+        fields,
     })
 }
 
@@ -106,26 +113,16 @@ fn parse_constants<T: Read>(reader: &mut T) -> JvmParseResult<Vec<Constant>> {
                 class_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
                 name_and_type_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
             },
-            8 => Constant::String {
-                string_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-            },
-            3 => Constant::Integer {
-                value: reader.read_u32::<BigEndian>()?,
-            },
-            4 => Constant::Float {
-                value: reader.read_f32::<BigEndian>()?,
-            },
+            8 => Constant::String(ConstantIndex(reader.read_u16::<BigEndian>()?)),
+            3 => Constant::Integer(reader.read_i32::<BigEndian>()?),
+            4 => Constant::Float(reader.read_f32::<BigEndian>()?),
             5 => {
                 long_constant = true;
-                Constant::Long {
-                    value: reader.read_u64::<BigEndian>()?,
-                }
+                Constant::Long(reader.read_i64::<BigEndian>()?)
             }
             6 => {
                 long_constant = true;
-                Constant::Double {
-                    value: reader.read_f64::<BigEndian>()?,
-                }
+                Constant::Double(reader.read_f64::<BigEndian>()?)
             }
             12 => Constant::NameAndType {
                 name_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
@@ -135,8 +132,8 @@ fn parse_constants<T: Read>(reader: &mut T) -> JvmParseResult<Vec<Constant>> {
                 let length = reader.read_u16::<BigEndian>()?;
                 let mut buf: Vec<u8> = vec![0; length as usize];
                 reader.read_exact(&mut buf)?;
-                Constant::Utf8 {
-                    value: from_java_cesu8(&buf)
+                Constant::Utf8(
+                    from_java_cesu8(&buf)
                         .map_err(|_err| {
                             JvmParseError::InvalidFormat(format!(
                                 "invalid string for constant {}",
@@ -144,7 +141,7 @@ fn parse_constants<T: Read>(reader: &mut T) -> JvmParseResult<Vec<Constant>> {
                             ))
                         })?
                         .into(),
-                }
+                )
             }
             15 => Constant::MethodHandle {
                 reference_kind: reader.read_u8()?.try_into()?,
@@ -180,6 +177,44 @@ fn parse_constants<T: Read>(reader: &mut T) -> JvmParseResult<Vec<Constant>> {
         }
     }
     Ok(constants)
+}
+
+fn parse_field<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Field> {
+    let access_flags = AccessFlags::from_bits_truncate(reader.read_u16::<BigEndian>()?);
+    let name_index = ConstantIndex(reader.read_u16::<BigEndian>()?);
+    let descriptor_index = ConstantIndex(reader.read_u16::<BigEndian>()?);
+    let attributes = parse_attributes(reader, cpool)?;
+
+    Ok(Field {
+        access_flags,
+        name_index,
+        descriptor_index,
+        attributes,
+    })
+}
+
+fn parse_attributes<T: Read>(
+    reader: &mut T,
+    cpool: &ConstantPool,
+) -> JvmParseResult<Vec<Attribute>> {
+    let attributes_count = reader.read_u16::<BigEndian>()? as usize;
+    (0..attributes_count)
+        .map(|_| parse_attribute(reader, cpool))
+        .collect::<JvmParseResult<Vec<Attribute>>>()
+}
+
+fn parse_attribute<T: Read>(reader: &mut T, _cpool: &ConstantPool) -> JvmParseResult<Attribute> {
+    let attribute_name_index = ConstantIndex(reader.read_u16::<BigEndian>()?);
+    let attribute_length = reader.read_u32::<BigEndian>()?;
+    let mut info: Vec<u8> = vec![0; attribute_length as usize];
+    reader.read_exact(&mut info)?;
+
+    //let name = cpool.resolve_utf8(attribute_name_index)?;
+
+    Ok(Attribute::UnknownAttribute {
+        name: attribute_name_index,
+        value: info,
+    })
 }
 
 #[cfg(test)]
