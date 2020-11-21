@@ -4,6 +4,7 @@ use cesu8::from_java_cesu8;
 use error::{JvmParseError, JvmParseResult};
 use model::{ClassFile, Constant, ConstantIndex};
 use std::convert::TryInto;
+use std::io;
 use std::io::Read;
 
 pub mod error;
@@ -63,6 +64,11 @@ pub fn parse_class_file<T: Read>(mut reader: T) -> JvmParseResult<ClassFile> {
     let this_class = ConstantIndex(reader.read_u16::<BigEndian>()?);
     let super_class = ConstantIndex(reader.read_u16::<BigEndian>()?);
 
+    let interfaces_count = reader.read_u16::<BigEndian>()? as usize;
+    let interfaces = (0..interfaces_count)
+        .map(|_| reader.read_u16::<BigEndian>().map(|c| ConstantIndex(c)))
+        .collect::<io::Result<Vec<ConstantIndex>>>()?;
+
     Ok(ClassFile {
         magic,
         minor_version,
@@ -71,6 +77,7 @@ pub fn parse_class_file<T: Read>(mut reader: T) -> JvmParseResult<ClassFile> {
         access_flags,
         this_class,
         super_class,
+        interfaces,
     })
 }
 

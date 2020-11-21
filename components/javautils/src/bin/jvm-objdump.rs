@@ -55,4 +55,12 @@ fn main() {
             .resolve_constant(class_file.super_class())
             .unwrap()
     );
+
+    for interface in class_file.interfaces() {
+        println!(
+            "INTERFACE: {:?} ({:?})",
+            interface,
+            class_file.resolve_constant(*interface).unwrap()
+        );
+    }
 }

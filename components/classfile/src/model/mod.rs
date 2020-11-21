@@ -11,6 +11,7 @@ pub struct ClassFile {
     pub(crate) access_flags: AccessFlags,
     pub(crate) this_class: ConstantIndex,
     pub(crate) super_class: ConstantIndex,
+    pub(crate) interfaces: Vec<ConstantIndex>,
 }
 
 impl ClassFile {
@@ -40,6 +41,10 @@ impl ClassFile {
 
     pub fn super_class(&self) -> ConstantIndex {
         self.super_class
+    }
+
+    pub fn interfaces(&self) -> &[ConstantIndex] {
+        &self.interfaces
     }
 
     //
