@@ -1,4 +1,5 @@
 use crate::error::{JvmParseError, JvmParseResult};
+use crate::model::attributes::{Code, ConstantValue};
 use bitflags::bitflags;
 use std::convert::TryFrom;
 use std::fmt;
@@ -288,5 +289,7 @@ pub struct Method {
 
 #[derive(Debug)]
 pub enum Attribute {
-    UnknownAttribute { name: ConstantIndex, value: Vec<u8> },
+    Code(Code),
+    ConstantValue(ConstantValue),
+    Unknown { name: ConstantIndex, value: Vec<u8> },
 }

@@ -77,7 +77,7 @@ fn main() {
         );
         println!("  ATTRIBUTES:");
         for attribute in &field.attributes {
-            println!("    {:?}", attribute);
+            println!("    {:#?}", attribute);
         }
     }
 
@@ -96,12 +96,12 @@ fn main() {
         );
         println!("  ATTRIBUTES:");
         for attribute in &method.attributes {
-            println!("    {:?}", attribute);
+            println!("    {:#?}", attribute);
         }
     }
 
     println!("ATTRIBUTES:");
     for attribute in class_file.attributes() {
-        println!("    {:?}", attribute);
+        println!("    {:#?}", attribute);
     }
 }

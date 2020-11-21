@@ -192,7 +192,6 @@ impl ClassFilePrimitive for AccessFlags {
 
 impl ClassFileEntry for Field {
     fn parse<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Field> {
-        println!("Field");
         Ok(Field {
             access_flags: reader.parse(cpool)?,
             name_index: reader.parse(cpool)?,
@@ -204,7 +203,6 @@ impl ClassFileEntry for Field {
 
 impl ClassFileEntry for Method {
     fn parse<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Method> {
-        println!("Method");
         Ok(Method {
             access_flags: reader.parse(cpool)?,
             name_index: reader.parse(cpool)?,
@@ -215,16 +213,19 @@ impl ClassFileEntry for Method {
 }
 
 impl ClassFileEntry for Attribute {
-    fn parse<T: Read>(reader: &mut T, _cpool: &ConstantPool) -> JvmParseResult<Attribute> {
-        println!("Attribute");
+    fn parse<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Attribute> {
         let attribute_name_index = ConstantIndex::parse_primitive(reader)?;
-        let info: Vec<u8> = parse_bytes_u32(reader)?;
+        let name = cpool.resolve_utf8(attribute_name_index)?;
+        let info = parse_bytes_u32(reader)?;
+        let mut slice: &[u8] = &info;
 
-        //let name = cpool.resolve_utf8(attribute_name_index)?;
-        println!("/Attribute");
-        Ok(Attribute::UnknownAttribute {
-            name: attribute_name_index,
-            value: info,
+        Ok(match name {
+            "Code" => Attribute::Code(slice.parse(cpool)?),
+            "ConstantValue" => Attribute::ConstantValue(slice.parse(cpool)?),
+            _ => Attribute::Unknown {
+                name: attribute_name_index,
+                value: info,
+            },
         })
     }
 }

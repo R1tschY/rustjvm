@@ -1,9 +1,11 @@
 use crate::model::{Attribute, ConstantIndex};
 
+#[derive(Debug)]
 pub struct ConstantValue {
     pub constantvalue_index: ConstantIndex,
 }
 
+#[derive(Debug)]
 pub struct ExceptionTableEntry {
     pub start_pc: u16,
     pub end_pc: u16,
@@ -11,6 +13,7 @@ pub struct ExceptionTableEntry {
     pub catch_type: u16,
 }
 
+#[derive(Debug)]
 pub struct Code {
     pub max_stack: u16,
     pub max_locals: u16,
