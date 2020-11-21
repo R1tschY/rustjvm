@@ -1,11 +1,10 @@
-use crate::model::{Attribute, ConstantPool, Field};
+use crate::model::{Attribute, ConstantPool, Field, Method};
 use bitflags::bitflags;
 use byteorder::{BigEndian, ReadBytesExt};
 use cesu8::from_java_cesu8;
 use error::{JvmParseError, JvmParseResult};
 use model::{ClassFile, Constant, ConstantIndex};
 use std::convert::TryInto;
-use std::io;
 use std::io::Read;
 
 pub mod descriptor;
@@ -61,20 +60,13 @@ pub fn parse_class_file<T: Read>(mut reader: T) -> JvmParseResult<ClassFile> {
 
     let constants = ConstantPool::new(parse_constants(&mut reader)?);
 
-    let access_flags = AccessFlags::from_bits_truncate(reader.read_u16::<BigEndian>()?);
-
-    let this_class = ConstantIndex(reader.read_u16::<BigEndian>()?);
-    let super_class = ConstantIndex(reader.read_u16::<BigEndian>()?);
-
-    let interfaces_count = reader.read_u16::<BigEndian>()? as usize;
-    let interfaces = (0..interfaces_count)
-        .map(|_| reader.read_u16::<BigEndian>().map(|c| ConstantIndex(c)))
-        .collect::<io::Result<Vec<ConstantIndex>>>()?;
-
-    let fields_count = reader.read_u16::<BigEndian>()? as usize;
-    let fields = (0..fields_count)
-        .map(|_| parse_field(&mut reader, &constants))
-        .collect::<JvmParseResult<Vec<Field>>>()?;
+    let access_flags = AccessFlags::parse_primitive(&mut reader)?;
+    let this_class = ConstantIndex::parse_primitive(&mut reader)?;
+    let super_class = ConstantIndex::parse_primitive(&mut reader)?;
+    let interfaces = Vec::<ConstantIndex>::parse(&mut reader, &constants)?;
+    let fields = Vec::<Field>::parse(&mut reader, &constants)?;
+    let methods = Vec::<Method>::parse(&mut reader, &constants)?;
+    let attributes = Vec::<Attribute>::parse(&mut reader, &constants)?;
 
     Ok(ClassFile {
         magic,
@@ -86,6 +78,8 @@ pub fn parse_class_file<T: Read>(mut reader: T) -> JvmParseResult<ClassFile> {
         super_class,
         interfaces,
         fields,
+        methods,
+        attributes,
     })
 }
 
@@ -100,21 +94,21 @@ fn parse_constants<T: Read>(reader: &mut T) -> JvmParseResult<Vec<Constant>> {
         let tag = reader.read_u8()?;
         let constant: Constant = match tag {
             7 => Constant::Class {
-                name_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
+                name_index: ConstantIndex::parse_primitive(reader)?,
             },
             9 => Constant::Fieldref {
-                class_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-                name_and_type_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
+                class_index: ConstantIndex::parse_primitive(reader)?,
+                name_and_type_index: ConstantIndex::parse_primitive(reader)?,
             },
             10 => Constant::Methodref {
-                class_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-                name_and_type_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
+                class_index: ConstantIndex::parse_primitive(reader)?,
+                name_and_type_index: ConstantIndex::parse_primitive(reader)?,
             },
             11 => Constant::InterfaceMethodref {
-                class_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-                name_and_type_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
+                class_index: ConstantIndex::parse_primitive(reader)?,
+                name_and_type_index: ConstantIndex::parse_primitive(reader)?,
             },
-            8 => Constant::String(ConstantIndex(reader.read_u16::<BigEndian>()?)),
+            8 => Constant::String(ConstantIndex::parse_primitive(reader)?),
             3 => Constant::Integer(reader.read_i32::<BigEndian>()?),
             4 => Constant::Float(reader.read_f32::<BigEndian>()?),
             5 => {
@@ -126,8 +120,19 @@ fn parse_constants<T: Read>(reader: &mut T) -> JvmParseResult<Vec<Constant>> {
                 Constant::Double(reader.read_f64::<BigEndian>()?)
             }
             12 => Constant::NameAndType {
-                name_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-                descriptor_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
+                name_index: ConstantIndex::parse_primitive(reader)?,
+                descriptor_index: ConstantIndex::parse_primitive(reader)?,
+            },
+            15 => Constant::MethodHandle {
+                reference_kind: reader.read_u8()?.try_into()?,
+                reference_index: ConstantIndex::parse_primitive(reader)?,
+            },
+            16 => Constant::MethodType {
+                descriptor_index: ConstantIndex::parse_primitive(reader)?,
+            },
+            18 => Constant::InvokeDynamic {
+                bootstrap_method_attr_index: ConstantIndex::parse_primitive(reader)?,
+                name_and_type_index: ConstantIndex::parse_primitive(reader)?,
             },
             1 => {
                 let length = reader.read_u16::<BigEndian>()?;
@@ -144,17 +149,6 @@ fn parse_constants<T: Read>(reader: &mut T) -> JvmParseResult<Vec<Constant>> {
                         .into(),
                 )
             }
-            15 => Constant::MethodHandle {
-                reference_kind: reader.read_u8()?.try_into()?,
-                reference_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-            },
-            16 => Constant::MethodType {
-                descriptor_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-            },
-            18 => Constant::InvokeDynamic {
-                bootstrap_method_attr_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-                name_and_type_index: ConstantIndex(reader.read_u16::<BigEndian>()?),
-            },
             _ => {
                 return Err(JvmParseError::InvalidFormat(format!(
                     "unknown constant pool tag at {}: {}",
@@ -180,49 +174,88 @@ fn parse_constants<T: Read>(reader: &mut T) -> JvmParseResult<Vec<Constant>> {
     Ok(constants)
 }
 
-fn parse_field<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Field> {
-    let access_flags = AccessFlags::from_bits_truncate(reader.read_u16::<BigEndian>()?);
-    let name_index = ConstantIndex(reader.read_u16::<BigEndian>()?);
-    let descriptor_index = ConstantIndex(reader.read_u16::<BigEndian>()?);
-    let attributes = parse_attributes(reader, cpool)?;
-
-    Ok(Field {
-        access_flags,
-        name_index,
-        descriptor_index,
-        attributes,
-    })
+trait ClassFileEntry: Sized {
+    fn parse<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Self>;
 }
 
-fn parse_attributes<T: Read>(
-    reader: &mut T,
-    cpool: &ConstantPool,
-) -> JvmParseResult<Vec<Attribute>> {
-    let attributes_count = reader.read_u16::<BigEndian>()? as usize;
-    (0..attributes_count)
-        .map(|_| parse_attribute(reader, cpool))
-        .collect::<JvmParseResult<Vec<Attribute>>>()
+trait ClassFilePrimitive: Sized {
+    fn parse_primitive<T: Read>(reader: &mut T) -> JvmParseResult<Self>;
 }
 
-fn parse_attribute<T: Read>(reader: &mut T, _cpool: &ConstantPool) -> JvmParseResult<Attribute> {
-    let attribute_name_index = ConstantIndex(reader.read_u16::<BigEndian>()?);
-    let attribute_length = reader.read_u32::<BigEndian>()?;
-    let mut info: Vec<u8> = vec![0; attribute_length as usize];
-    reader.read_exact(&mut info)?;
-
-    //let name = cpool.resolve_utf8(attribute_name_index)?;
-
-    Ok(Attribute::UnknownAttribute {
-        name: attribute_name_index,
-        value: info,
-    })
+impl<T: ClassFilePrimitive> ClassFileEntry for T {
+    #[inline]
+    fn parse<R: Read>(reader: &mut R, _: &ConstantPool) -> JvmParseResult<Self> {
+        T::parse_primitive(reader)
+    }
 }
 
-#[cfg(test)]
-mod tests {
+impl ClassFilePrimitive for ConstantIndex {
+    fn parse_primitive<T: Read>(reader: &mut T) -> JvmParseResult<ConstantIndex> {
+        Ok(ConstantIndex(reader.read_u16::<BigEndian>()?))
+    }
+}
 
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+impl ClassFilePrimitive for AccessFlags {
+    fn parse_primitive<T: Read>(reader: &mut T) -> JvmParseResult<AccessFlags> {
+        Ok(AccessFlags::from_bits_truncate(
+            reader.read_u16::<BigEndian>()?,
+        ))
+    }
+}
+
+impl ClassFileEntry for Field {
+    fn parse<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Field> {
+        let access_flags = AccessFlags::parse_primitive(reader)?;
+        let name_index = ConstantIndex::parse_primitive(reader)?;
+        let descriptor_index = ConstantIndex::parse_primitive(reader)?;
+        let attributes = Vec::<Attribute>::parse(reader, cpool)?;
+
+        Ok(Field {
+            access_flags,
+            name_index,
+            descriptor_index,
+            attributes,
+        })
+    }
+}
+
+impl ClassFileEntry for Method {
+    fn parse<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Method> {
+        let access_flags = AccessFlags::parse_primitive(reader)?;
+        let name_index = ConstantIndex::parse_primitive(reader)?;
+        let descriptor_index = ConstantIndex::parse_primitive(reader)?;
+        let attributes = Vec::<Attribute>::parse(reader, cpool)?;
+
+        Ok(Method {
+            access_flags,
+            name_index,
+            descriptor_index,
+            attributes,
+        })
+    }
+}
+
+impl ClassFileEntry for Attribute {
+    fn parse<T: Read>(reader: &mut T, _cpool: &ConstantPool) -> JvmParseResult<Attribute> {
+        let attribute_name_index = ConstantIndex::parse_primitive(reader)?;
+        let attribute_length = reader.read_u32::<BigEndian>()?;
+        let mut info: Vec<u8> = vec![0; attribute_length as usize];
+        reader.read_exact(&mut info)?;
+
+        //let name = cpool.resolve_utf8(attribute_name_index)?;
+
+        Ok(Attribute::UnknownAttribute {
+            name: attribute_name_index,
+            value: info,
+        })
+    }
+}
+
+impl<U: ClassFileEntry> ClassFileEntry for Vec<U> {
+    fn parse<T: Read>(reader: &mut T, cpool: &ConstantPool) -> JvmParseResult<Vec<U>> {
+        let attributes_count = reader.read_u16::<BigEndian>()? as usize;
+        (0..attributes_count)
+            .map(|_| U::parse(reader, cpool))
+            .collect::<JvmParseResult<Vec<U>>>()
     }
 }

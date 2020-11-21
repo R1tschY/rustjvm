@@ -13,6 +13,8 @@ pub struct ClassFile {
     pub(crate) super_class: ConstantIndex,
     pub(crate) interfaces: Vec<ConstantIndex>,
     pub(crate) fields: Vec<Field>,
+    pub(crate) methods: Vec<Method>,
+    pub(crate) attributes: Vec<Attribute>,
 }
 
 impl ClassFile {
@@ -50,6 +52,14 @@ impl ClassFile {
 
     pub fn fields(&self) -> &[Field] {
         &self.fields
+    }
+
+    pub fn methods(&self) -> &[Method] {
+        &self.methods
+    }
+
+    pub fn attributes(&self) -> &[Attribute] {
+        &self.attributes
     }
 }
 
@@ -230,6 +240,13 @@ impl TryFrom<u8> for ReferenceKind {
 }
 
 pub struct Field {
+    pub access_flags: AccessFlags,
+    pub name_index: ConstantIndex,
+    pub descriptor_index: ConstantIndex,
+    pub attributes: Vec<Attribute>,
+}
+
+pub struct Method {
     pub access_flags: AccessFlags,
     pub name_index: ConstantIndex,
     pub descriptor_index: ConstantIndex,
