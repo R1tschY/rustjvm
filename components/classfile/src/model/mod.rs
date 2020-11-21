@@ -1,7 +1,9 @@
 use crate::error::{JvmParseError, JvmParseResult};
-use crate::AccessFlags;
-use bitflags::_core::convert::TryFrom;
-use bitflags::_core::fmt;
+use bitflags::bitflags;
+use std::convert::TryFrom;
+use std::fmt;
+
+pub mod attributes;
 
 pub struct ClassFile {
     pub(crate) magic: u32,
@@ -60,6 +62,37 @@ impl ClassFile {
 
     pub fn attributes(&self) -> &[Attribute] {
         &self.attributes
+    }
+}
+
+bitflags! {
+    pub struct AccessFlags: u16 {
+        /// Declared public; may be accessed from outside its package.
+        const PUBLIC = 0x0001;
+
+        /// Declared final; no subclasses allowed.
+        const FINAL = 0x0010;
+
+        /// Treat superclass methods specially when invoked by the invokespecial instruction.
+        const SUPER = 0x0020;
+
+        /// Is an interface, not a class.
+        const INTERFACE = 0x0200;
+
+        /// Declared abstract; must not be instantiated.
+        const ABSTRACT = 0x0400;
+
+        /// Declared synthetic; not present in the source code.
+        const SYNTHETIC = 0x1000;
+
+        /// Declared as an annotation type.
+        const ANNOTATION = 0x2000;
+
+        /// Declared as an enum type.
+        const ENUM = 0x4000;
+
+        /// Is a module, not a class or interface.
+        const MODULE = 0x8000;
     }
 }
 

@@ -3,7 +3,7 @@ use std::fs::File;
 use clap::{App, Arg};
 
 use classfile::descriptor::parse_field_descriptor;
-use classfile::parse_class_file;
+use classfile::parse::parse_class_file;
 
 fn main() {
     let matches = App::new("JVM objdump")
@@ -64,7 +64,7 @@ fn main() {
     for field in class_file.fields() {
         println!("FIELD:",);
         println!(
-            "  NAME: {:?} -> {:?}",
+            "  NAME: {:?} -> {}",
             field.name_index,
             constant_pool.resolve_utf8(field.name_index).unwrap()
         );
@@ -79,5 +79,29 @@ fn main() {
         for attribute in &field.attributes {
             println!("    {:?}", attribute);
         }
+    }
+
+    for method in class_file.methods() {
+        println!("METHOD:",);
+        println!(
+            "  NAME: {:?} -> {}",
+            method.name_index,
+            constant_pool.resolve_utf8(method.name_index).unwrap()
+        );
+        println!("  FLAGS: {:?}", method.access_flags);
+        println!(
+            "  DESCRIPTOR: {:?} -> {}",
+            method.descriptor_index,
+            constant_pool.resolve_utf8(method.descriptor_index).unwrap()
+        );
+        println!("  ATTRIBUTES:");
+        for attribute in &method.attributes {
+            println!("    {:?}", attribute);
+        }
+    }
+
+    println!("ATTRIBUTES:");
+    for attribute in class_file.attributes() {
+        println!("    {:?}", attribute);
     }
 }
