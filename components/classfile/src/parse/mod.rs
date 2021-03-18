@@ -222,6 +222,7 @@ impl ClassFileEntry for Attribute {
         Ok(match name {
             "Code" => Attribute::Code(slice.parse(cpool)?),
             "ConstantValue" => Attribute::ConstantValue(slice.parse(cpool)?),
+            "SourceFile" => Attribute::SourceFile(slice.parse(cpool)?),
             _ => Attribute::Unknown {
                 name: attribute_name_index,
                 value: info,

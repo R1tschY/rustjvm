@@ -1,5 +1,8 @@
 [workspace]
 members = [
     "components/classfile",
-    "components/javautils"
+    "components/opcode",
+    "components/javautils",
+    "components/stackengine",
+    "components/pyjvm-compiler"
 ]

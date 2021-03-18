@@ -1,4 +1,5 @@
 use crate::model::{Attribute, ConstantIndex};
+use rustjvm_opcode::Opcode;
 
 #[derive(Debug)]
 pub struct ConstantValue {
@@ -17,7 +18,7 @@ pub struct ExceptionTableEntry {
 pub struct Code {
     pub max_stack: u16,
     pub max_locals: u16,
-    pub code: Vec<u8>,
+    pub code: Vec<Opcode>,
     pub exception_table: Vec<ExceptionTableEntry>,
     pub attributes: Vec<Attribute>,
 }

@@ -2,6 +2,7 @@ use crate::error::JvmParseResult;
 use crate::model::attributes::{Code, ConstantValue, ExceptionTableEntry};
 use crate::model::ConstantPool;
 use crate::parse::{parse_bytes_u32, ClassFileEntry, ReadClassFileExt};
+use rustjvm_opcode::disasm;
 use std::io::Read;
 
 impl ClassFileEntry for ConstantValue {
@@ -28,7 +29,7 @@ impl ClassFileEntry for Code {
         Ok(Code {
             max_stack: reader.parse(cpool)?,
             max_locals: reader.parse(cpool)?,
-            code: parse_bytes_u32(reader)?,
+            code: disasm(&parse_bytes_u32(reader)?)?,
             exception_table: reader.parse(cpool)?,
             attributes: reader.parse(cpool)?,
         })

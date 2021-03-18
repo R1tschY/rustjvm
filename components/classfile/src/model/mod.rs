@@ -109,7 +109,7 @@ impl ConstantPool {
             .iter()
             .enumerate()
             .filter(|(_, c)| c.is_valid())
-            .map(|(i, constant)| (ConstantIndex(i as u16), constant))
+            .map(|(i, constant)| (ConstantIndex(i as u16 + 1), constant))
             .collect()
     }
 
@@ -128,6 +128,17 @@ impl ConstantPool {
             Some(_) => Err(JvmParseError::WrongConstantType(
                 index,
                 "expected Utf8".into(),
+            )),
+            None => Err(JvmParseError::MissingConstant(index)),
+        }
+    }
+
+    pub fn resolve_class(&self, index: ConstantIndex) -> JvmParseResult<ConstantIndex> {
+        match self.get(index) {
+            Some(Constant::Class { name_index }) => Ok(name_index.clone()),
+            Some(_) => Err(JvmParseError::WrongConstantType(
+                index,
+                "expected class".into(),
             )),
             None => Err(JvmParseError::MissingConstant(index)),
         }
@@ -291,5 +302,6 @@ pub struct Method {
 pub enum Attribute {
     Code(Code),
     ConstantValue(ConstantValue),
+    SourceFile(ConstantIndex), // MUST be index to Utf8
     Unknown { name: ConstantIndex, value: Vec<u8> },
 }
