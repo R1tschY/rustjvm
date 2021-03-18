@@ -1,9 +1,16 @@
-use classfile::model::{Constant, ConstantIndex, ConstantPool};
-use rustjvm_opcode::Opcode;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::sync::Arc;
+
+use classfile::model::constants::{Constant, ConstantIndex, ConstantPool};
+use rustjvm_opcode::Opcode;
+
+use crate::cpool::RuntimeConstantPool;
+
+mod class_loader;
+mod cpool;
+mod exception;
 
 pub struct JObject {
     fields: Vec<JValue>,
@@ -97,14 +104,15 @@ pub struct LoadedMethod {
     args: u16,
 }
 
-pub struct LoadedClass {
+pub struct LoadedField {
     id: String,
-    // fields: HashMap<String, Class>,
-    methods: HashMap<String, LoadedMethod>,
 }
 
-pub struct ClassLoader {
-    // classes: HashMap<String, Class>,
+pub struct LoadedClass {
+    id: String,
+    cpool: RuntimeConstantPool,
+    fields: Vec<LoadedField>,
+    methods: HashMap<String, LoadedMethod>,
 }
 
 pub struct JEngine {

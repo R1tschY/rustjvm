@@ -1,4 +1,4 @@
-use crate::model::ConstantIndex;
+use crate::model::constants::ConstantIndex;
 use rustjvm_opcode::DisasmError;
 use std::io;
 

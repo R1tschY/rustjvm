@@ -1,6 +1,6 @@
 use crate::error::JvmParseResult;
 use crate::model::attributes::{Code, ConstantValue, ExceptionTableEntry};
-use crate::model::ConstantPool;
+use crate::model::constants::ConstantPool;
 use crate::parse::{parse_bytes_u32, ClassFileEntry, ReadClassFileExt};
 use rustjvm_opcode::disasm;
 use std::io::Read;

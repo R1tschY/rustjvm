@@ -1,11 +1,12 @@
-use crate::error::{JvmParseError, JvmParseResult};
-use crate::model::{
-    AccessFlags, Attribute, ClassFile, Constant, ConstantIndex, ConstantPool, Field, Method,
-};
-use byteorder::{BigEndian, ReadBytesExt};
-use cesu8::from_java_cesu8;
 use std::convert::TryInto;
 use std::io::Read;
+
+use byteorder::{BigEndian, ReadBytesExt};
+use cesu8::from_java_cesu8;
+
+use crate::error::{JvmParseError, JvmParseResult};
+use crate::model::constants::{Constant, ConstantIndex, ConstantPool};
+use crate::model::{AccessFlags, Attribute, ClassFile, Field, Method};
 
 mod attributes;
 

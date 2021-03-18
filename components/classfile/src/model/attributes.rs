@@ -1,5 +1,7 @@
-use crate::model::{Attribute, ConstantIndex};
 use rustjvm_opcode::Opcode;
+
+use crate::model::constants::ConstantIndex;
+use crate::model::Attribute;
 
 #[derive(Debug)]
 pub struct ConstantValue {
